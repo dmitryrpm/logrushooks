@@ -5,41 +5,21 @@ import (
 	"github.com/sirupsen/logrus"
 	"log/syslog"
 	"os"
-	"strings"
 )
 
 type SyslogHook struct {
-	SyslogNetwork string
-	SyslogRaddr   string
-	Tag           string
-	Writer        *syslog.Writer
-	Formater      logrus.Formatter
-}
-
-// ParseLevel takes a string level and returns the Logrus log level constant.
-func ParseLevel(lvl string) (syslog.Priority, error) {
-
-	switch strings.ToLower(lvl) {
-	case "panic":
-		return syslog.LOG_EMERG, nil
-	case "fatal":
-		return syslog.LOG_CRIT, nil
-	case "error":
-		return syslog.LOG_ERR, nil
-	case "warn", "warning":
-		return syslog.LOG_WARNING, nil
-	case "info":
-		return syslog.LOG_INFO, nil
-	case "debug":
-		return syslog.LOG_DEBUG, nil
-	}
-
-	return 0, fmt.Errorf("invalid log level: '%s' not in [panic, fatal, error, warn|ing, info, debug]", lvl)
+	SyslogRaddr string
+	Writer      *syslog.Writer
+	Formater    logrus.Formatter
+	levels      []logrus.Level
+	network     string
+	priority    syslog.Priority
+	tag         string
 }
 
 type Option func(*SyslogHook)
 
-func WithFormater(formater *logrus.Formatter) Option {
+func WithFormater(formater logrus.Formatter) Option {
 	return Option(func(slog *SyslogHook) {
 		slog.Formater = formater
 	})
@@ -47,49 +27,81 @@ func WithFormater(formater *logrus.Formatter) Option {
 
 func WithTag(tag string) Option {
 	return Option(func(slog *SyslogHook) {
-		slog.Tag = tag
+		slog.tag = tag
+	})
+}
+
+func WithNetwork(network string) Option {
+	return Option(func(slog *SyslogHook) {
+		slog.network = network
+	})
+}
+
+func WithPriority(p syslog.Priority) Option {
+	return Option(func(slog *SyslogHook) {
+		if p == 0 {
+			slog.priority = p
+		}
+		slog.priority = syslog.LOG_INFO
 	})
 }
 
 /*
 Create a hook to be added to an instance of logger. This is called with
-   hook, err := NewSyslogHook("udp", "localhost:514", "debug", )
-   if err != nil {
-       log.Fatalf("Syslog hook init fail: %s", err)
-   }
-   log.Hooks.Add(hook)
-*/
-func NewSyslogHook(network, addr, level string, opts ...Option) (*SyslogHook, error) {
+	syslog_host = `127.0.0.1`
+    syslog_level = `info
+`
+    format := (&format.SomeFormater{
+		DisableTimestamp:   true,
+		MessageAfterFields: true,
+	}).Init()
 
-	priority, err := ParseLevel(level)
+	sysHook, err := logrushooks.NewSyslogHook(
+		syslog_host,
+		syslog_level,
+		logrushooks.WithFormater(format),
+	)
+
+	if err != nil {
+		logger.Fatalf("Syslog hook init fails: %s", err)
+	}
+
+	logger.Hooks.Add(sysHook)
+*/
+func NewSyslogHook(addr, level string, opts ...Option) (*SyslogHook, error) {
+
+	lvl, err := logrus.ParseLevel(level)
 	if err != nil {
 		return nil, err
 	}
 
+	levels := []logrus.Level{0}
+	for i := 1; i <= int(lvl); i++ {
+		levels = append(levels, logrus.Level(i))
+	}
+
 	sLog := &SyslogHook{
-		SyslogNetwork: network,
-		SyslogRaddr:   addr,
+		SyslogRaddr: addr,
+		levels:      levels,
+		priority:    syslog.LOG_INFO,
+		network:     "udp",
+		Formater:    logrus.StandardLogger().Formatter,
 	}
 
 	for _, o := range opts {
 		o(sLog)
 	}
 
-	if sLog.Formater == nil {
-		sLog.Formater = logrus.Logger.Formatter
-	}
-
-	w, err := syslog.Dial(network, addr, priority, sLog.Tag)
+	w, err := syslog.Dial(sLog.network, sLog.SyslogRaddr, sLog.priority, sLog.tag)
 	if err != nil {
 		return nil, err
 	}
 	sLog.Writer = w
 
-	return sLog, err
+	return sLog, nil
 }
 
 func (hook *SyslogHook) Fire(entry *logrus.Entry) error {
-
 	line, err := hook.Formater.Format(entry)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to read entry, %v", err)
@@ -115,5 +127,5 @@ func (hook *SyslogHook) Fire(entry *logrus.Entry) error {
 }
 
 func (hook *SyslogHook) Levels() []logrus.Level {
-	return logrus.AllLevels
+	return hook.levels
 }
