@@ -8,20 +8,22 @@ import (
 )
 
 type SyslogHook struct {
-	SyslogRaddr string
-	Writer      *syslog.Writer
-	Formater    logrus.Formatter
-	levels      []logrus.Level
-	network     string
-	priority    syslog.Priority
-	tag         string
+	Writer     *syslog.Writer
+	syslogDial func(network, raddr string, priority syslog.Priority, tag string) (*syslog.Writer, error)
+
+	formater logrus.Formatter
+	addr     string
+	levels   []logrus.Level
+	network  string
+	priority syslog.Priority
+	tag      string
 }
 
 type Option func(*SyslogHook)
 
 func WithFormater(formater logrus.Formatter) Option {
 	return Option(func(slog *SyslogHook) {
-		slog.Formater = formater
+		slog.formater = formater
 	})
 }
 
@@ -81,18 +83,19 @@ func NewSyslogHook(addr, level string, opts ...Option) (*SyslogHook, error) {
 	}
 
 	sLog := &SyslogHook{
-		SyslogRaddr: addr,
-		levels:      levels,
-		priority:    syslog.LOG_INFO,
-		network:     "udp",
-		Formater:    logrus.StandardLogger().Formatter,
+		addr:       addr,
+		levels:     levels,
+		priority:   syslog.LOG_INFO,
+		network:    "udp",
+		formater:   logrus.StandardLogger().Formatter,
+		syslogDial: syslog.Dial,
 	}
 
 	for _, o := range opts {
 		o(sLog)
 	}
 
-	w, err := syslog.Dial(sLog.network, sLog.SyslogRaddr, sLog.priority, sLog.tag)
+	w, err := sLog.syslogDial(sLog.network, sLog.addr, sLog.priority, sLog.tag)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +105,7 @@ func NewSyslogHook(addr, level string, opts ...Option) (*SyslogHook, error) {
 }
 
 func (hook *SyslogHook) Fire(entry *logrus.Entry) error {
-	line, err := hook.Formater.Format(entry)
+	line, err := hook.formater.Format(entry)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to read entry, %v", err)
 		return err
