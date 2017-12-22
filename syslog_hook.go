@@ -22,30 +22,30 @@ type SyslogHook struct {
 type Option func(*SyslogHook)
 
 func WithFormater(formater logrus.Formatter) Option {
-	return Option(func(slog *SyslogHook) {
+	return func(slog *SyslogHook) {
 		slog.formater = formater
-	})
+	}
 }
 
 func WithTag(tag string) Option {
-	return Option(func(slog *SyslogHook) {
+	return func(slog *SyslogHook) {
 		slog.tag = tag
-	})
+	}
 }
 
 func WithNetwork(network string) Option {
-	return Option(func(slog *SyslogHook) {
+	return func(slog *SyslogHook) {
 		slog.network = network
-	})
+	}
 }
 
 func WithPriority(p syslog.Priority) Option {
-	return Option(func(slog *SyslogHook) {
+	return func(slog *SyslogHook) {
 		if p == 0 {
 			slog.priority = p
 		}
 		slog.priority = syslog.LOG_INFO
-	})
+	}
 }
 
 /*
