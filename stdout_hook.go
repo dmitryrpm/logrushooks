@@ -13,7 +13,15 @@ type StdoutHook struct {
 	levels   []logrus.Level
 }
 
-func NewStdoutHook(level string) (*StdoutHook, error) {
+type StdoutOption func(*StdoutHook)
+
+func WithStdoutFormater(formater logrus.Formatter) StdoutOption {
+	return func(slog *StdoutHook) {
+		slog.formater = formater
+	}
+}
+
+func NewStdoutHook(level string, opts ...StdoutOption) (*StdoutHook, error) {
 
 	lvl, err := logrus.ParseLevel(level)
 	if err != nil {
@@ -31,6 +39,10 @@ func NewStdoutHook(level string) (*StdoutHook, error) {
 		Writer:   os.Stderr,
 	}
 
+	for _, o := range opts {
+		o(sLog)
+	}
+
 	return sLog, nil
 }
 
@@ -46,4 +58,8 @@ func (hook *StdoutHook) Fire(entry *logrus.Entry) error {
 
 func (hook *StdoutHook) Levels() []logrus.Level {
 	return hook.levels
+}
+
+func (hook *StdoutHook) SetFormater(formater logrus.Formatter) {
+	hook.formater = formater
 }

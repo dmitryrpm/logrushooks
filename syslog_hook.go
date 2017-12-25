@@ -7,6 +7,35 @@ import (
 	"os"
 )
 
+type SyslogOptions func(*SyslogHook)
+
+func WithSyslogFormater(formater logrus.Formatter) SyslogOptions {
+	return func(slog *SyslogHook) {
+		slog.formater = formater
+	}
+}
+
+func WithSyslogTag(tag string) SyslogOptions {
+	return func(slog *SyslogHook) {
+		slog.tag = tag
+	}
+}
+
+func WithSyslogNetwork(network string) SyslogOptions {
+	return func(slog *SyslogHook) {
+		slog.network = network
+	}
+}
+
+func WithSyslogPriority(p syslog.Priority) SyslogOptions {
+	return func(slog *SyslogHook) {
+		if p == 0 {
+			slog.priority = p
+		}
+		slog.priority = syslog.LOG_INFO
+	}
+}
+
 type SyslogHook struct {
 	Writer     *syslog.Writer
 	syslogDial func(network, raddr string, priority syslog.Priority, tag string) (*syslog.Writer, error)
@@ -17,35 +46,6 @@ type SyslogHook struct {
 	network  string
 	priority syslog.Priority
 	tag      string
-}
-
-type Option func(*SyslogHook)
-
-func WithFormater(formater logrus.Formatter) Option {
-	return func(slog *SyslogHook) {
-		slog.formater = formater
-	}
-}
-
-func WithTag(tag string) Option {
-	return func(slog *SyslogHook) {
-		slog.tag = tag
-	}
-}
-
-func WithNetwork(network string) Option {
-	return func(slog *SyslogHook) {
-		slog.network = network
-	}
-}
-
-func WithPriority(p syslog.Priority) Option {
-	return func(slog *SyslogHook) {
-		if p == 0 {
-			slog.priority = p
-		}
-		slog.priority = syslog.LOG_INFO
-	}
 }
 
 /*
@@ -70,7 +70,7 @@ Create a hook to be added to an instance of logger. This is called with
 
 	logger.Hooks.Add(sysHook)
 */
-func NewSyslogHook(addr, level string, opts ...Option) (*SyslogHook, error) {
+func NewSyslogHook(addr, level string, opts ...SyslogOptions) (*SyslogHook, error) {
 
 	lvl, err := logrus.ParseLevel(level)
 	if err != nil {
@@ -131,4 +131,8 @@ func (hook *SyslogHook) Fire(entry *logrus.Entry) error {
 
 func (hook *SyslogHook) Levels() []logrus.Level {
 	return hook.levels
+}
+
+func (hook *SyslogHook) SetFormater(formater logrus.Formatter) {
+
 }

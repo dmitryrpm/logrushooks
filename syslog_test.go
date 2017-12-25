@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-type Deal func(network, raddr string, priority syslog.Priority, tag string) (*syslog.Writer, error)
-
 type MockDeal struct {
 	buff *bytes.Buffer
 }
@@ -18,10 +16,17 @@ func (m MockDeal) Deal(network, raddr string, priority syslog.Priority, tag stri
 	return &syslog.Writer{}, nil
 }
 
-func WithSyslogDeal(mockDeal Deal) Option {
-	return Option(func(slog *SyslogHook) {
-		slog.syslogDial = mockDeal
-	})
+type HookTester interface {
+	SetSyslogDeal(d Deal)
+}
+
+// Test options
+type Deal func(network, raddr string, priority syslog.Priority, tag string) (*syslog.Writer, error)
+
+func WithSyslogDeal(d Deal) SyslogOptions {
+	return func(slog *SyslogHook) {
+		slog.syslogDial = d
+	}
 }
 
 func TestCorrectHookWithFire(t *testing.T) {
@@ -30,6 +35,7 @@ func TestCorrectHookWithFire(t *testing.T) {
 		`127.0.0.1`,
 		`info`,
 		WithSyslogDeal(mockDeal.Deal),
+		WithSyslogPriority(syslog.Priority(2)),
 	)
 
 	if err != nil || sysHook == nil {
